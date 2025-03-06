@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.mysql.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.mysql.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.mysql.name }}
+  serviceName: "{{ .Values.mysql.name }}"
+  replicas: {{ .Values.mysql.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.mysql.name }}
+    spec:
+      securityContext:
+        fsGroup: 999  # UID du groupe MySQL (à ajuster si nécessaire)
+      containers:
+      - name: database
+        image: {{ .Values.mysql.image }}
+        resources: {{- toYaml .Values.mysql.resources | nindent 10 }}
+        args:
+          - "--ignore-db-dir=lost+found"
+        envFrom:
+          - secretRef:
+              name: mysql-secret
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.mysql.livenessProbe.tcpSocket.port }}
+          initialDelaySeconds: {{ .Values.mysql.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mysql.livenessProbe.periodSeconds }}
+          failureThreshold: {{ .Values.mysql.livenessProbe.failureThreshold }}
+
+        readinessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"
+          initialDelaySeconds: {{ .Values.mysql.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mysql.readinessProbe.periodSeconds }}
+          failureThreshold: {{ .Values.mysql.readinessProbe.failureThreshold }}
+          
+        ports:
+          - containerPort: {{ .Values.mysql.service.port }}
+        volumeMounts:
+        - name: mysql-data
+          mountPath: {{ .Values.mysql.volume.mountPath }}
+
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.mysql.volume.storage }}

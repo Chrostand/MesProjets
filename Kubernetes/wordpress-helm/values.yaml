@@ -1,0 +1,67 @@
+## 🔹 WordPress Configuration
+wordpress:
+  name: wordpress
+  image: wordpress:latest
+  replicaCount: 1
+  pvcSize: 10Gi
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30008
+    protocol: TCP
+  env:
+    WORDPRESS_DB_HOST: mysql
+    WORDPRESS_DB_USER: root
+    WORDPRESS_DB_NAME: wordpress
+  mysqlClient:
+    image: debian:latest
+  volume:
+    name: wordpress-data
+    mountPath: /var/www/html
+    persistentVolumeClaim:
+      claimName: wordpress-volume
+
+## 🔹 MySQL Configuration
+mysql:
+  name: mysql
+  image: mysql:5.7
+  replicaCount: 1
+  rootPassword: "password"
+  service:
+    port: 3306
+    protocol: TCP
+
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+
+  livenessProbe:
+    tcpSocket:
+      port: 3306
+    initialDelaySeconds: 60  # Augmenter le temps d'attente avant la première vérification
+    periodSeconds: 10        # Vérification toutes les 10 secondes
+    failureThreshold: 5      # Nombre d'échecs avant redémarrage
+
+  readinessProbe:
+    tcpSocket:
+      port: 3306
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 5
+
+  volume:
+    name: mysql-data
+    mountPath: /var/lib/mysql
+    storage: 1Gi  # Définition explicite de la taille du volume pour le StatefulSet
+
+## 🔹 Volumes Configuration
+volumes:
+  - name: wordpress-data
+    persistentVolumeClaim:
+      claimName: wordpress-volume
+
+volumeMounts:
+  - name: wordpress-data
+    mountPath: /var/www/html

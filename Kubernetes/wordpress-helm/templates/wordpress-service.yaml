@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: wordpress-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.wordpress.service.type }}
+  selector:
+    app: {{ .Values.wordpress.name }}
+  ports:
+    - protocol: {{ .Values.wordpress.service.protocol }}
+      port: {{ .Values.wordpress.service.port }}
+      targetPort: {{ .Values.wordpress.service.port }}
+      nodePort: {{ .Values.wordpress.service.nodePort }}
