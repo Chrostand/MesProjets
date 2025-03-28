@@ -1,0 +1,72 @@
+services:
+  servicecenter:
+    image: servicecomb/service-center:1.0.0
+    container_name: servicecenter_container
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:30100/health"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
+
+  catalog:
+    build:
+      context: ./catalog
+    image: catalog:1.0.0 # Donne un nom à l'image
+    container_name: catalog_container
+    environment:
+      CSE_REGISTRY_ADDR: http://servicecenter:30100
+    links:
+      - servicecenter
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
+
+  payment:
+    build:
+      context: ./payment
+    image: payment:1.0.0 # Donne un nom à l'image
+    container_name: payment_container
+    environment:
+      SC_HOST: servicecenter
+    links:
+      - servicecenter
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
+
+  mesherfrontend:
+    image: thanda/mesher:osi
+    container_name: mesherfrontend_container
+    environment:
+      - CSE_REGISTRY_ADDR=http://servicecenter:30100
+      - SERVICE_NAME=frontend
+      - VERSION=0.0.1
+      - APP_ID=OSIConference
+    ports:
+      - 80:80  
+    links:
+      - servicecenter
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+    image: frontend:1.0.0 # Donne un nom à l'image
+    container_name: frontend_container
+    environment:
+      - http_proxy=127.0.0.1:30101
+    network_mode: "service:mesherfrontend"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
+
