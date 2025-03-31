@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: servicecenter
+  namespace: microservices
+  labels:
+    app: servicecenter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: servicecenter
+  template:
+    metadata:
+      labels:
+        app: servicecenter
+    spec:
+      containers:
+        - name: servicecenter
+          image: servicecomb/service-center:1.0.0
+          ports:
+            - containerPort: 30100

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: microservices
+  labels:
+    app: payment
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: payment
+        tier: backend
+    spec:
+      containers:
+      - env:
+        - name: SC_HOST
+          value: servicecenter
+        image: christiantagne/payment:1.0.0
+        name: payment
