@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: wordpress
+  
+type: Opaque
+data:
+  #This is base64 encoded --the real password is password
+  MYSQL_ROOT_PASSWORD: cGFzc3dvcmQ=  # "password" encodé en base64
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wordpress-config
+  namespace: wordpress
+data:
+  WORDPRESS_DB_HOST: "mysql.wordpress.svc.cluster.local"
+  WORDPRESS_DB_NAME: "wordpress"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-volume
+  namespace: wordpress
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: wordpress
+  # labels so that we can bind a Service to this Pod
+  labels:
+    app: mysql
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  serviceName: "mysql"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: database
+        image: mysql:5.7
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 256Mi
+        args:
+          # We need this to prevent mysql from throwing up -- our DO volume will be mounted here
+          - "--ignore-db-dir=lost+found"
+        # A nice way to get a whole bunch of values from a k8s secret into a container's  environment variables
+        envFrom:
+          - secretRef:
+              name: mysql-secret
+        ## The old way (one for each value):
+        # env:
+        # # Use a secret, avoid having plaintext passwords all over your configs
+        # - name: MYSQL_ROOT_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: mysql-secret
+        #       key: MYSQL_ROOT_PASSWORD
+        livenessProbe:
+          tcpSocket:
+            port: 3306
+          initialDelaySeconds: 60  # Augmenter le temps d'attente avant la première vérification
+          periodSeconds: 10        # Vérification toutes les 10 secondes
+          failureThreshold: 5      # Nombre d'échecs avant redémarrage
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 5
+        ports:
+          - containerPort: 3306
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-volume
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: wordpress
+spec:
+  ports:
+    - port: 3306
+      protocol: TCP
+  selector:
+    app: mysql
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-volume
+  namespace: wordpress
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: wordpress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+      - name: wordpress
+        image: wordpress:5-php7.1-apache
+        volumeMounts:
+          - name: wordpress-data
+            mountPath: /var/www
+          # - name: apache-config
+          #   mountPath: /etc/apache2/sites-available/000-default.conf
+          #   subPath: apache.conf
+        env:
+        - name: WORDPRESS_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: wordpress-config
+              key: WORDPRESS_DB_HOST
+        - name: WORDPRESS_DB_USER
+          value: "root"
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: WORDPRESS_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: wordpress-config
+              key: WORDPRESS_DB_NAME
+        ports:
+        - containerPort: 80
+          name: wordpress
+      
+      - name: mysql-client
+        image: debian:latest
+        command: ["sh", "-c", "apt update && apt install -y default-mysql-client && tail -f /dev/null"]
+
+      volumes:
+        - name: wordpress-data
+          persistentVolumeClaim:
+            claimName: wordpress-volume
+        # - name: apache-config
+        #   configMap:
+        #     name: apache-config
+        #     items:
+        #       - key: apache.conf
+        #         path: apache.conf
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: wordpress-service
+  namespace: wordpress
+spec:
+  type: NodePort
+  selector:
+    app: wordpress
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30008
