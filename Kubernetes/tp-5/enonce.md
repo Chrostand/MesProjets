@@ -4,7 +4,7 @@ https://devopscube.com/install-configure-helm-kubernetes/
 
 recuperation du script d'installation
 ```bash
-curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 ```
 donnons les droits d'execution
 ```bash 
