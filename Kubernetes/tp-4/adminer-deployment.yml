@@ -19,17 +19,17 @@ spec:
         image: adminer:latest
         env:
         - name: ADMINER_DEFAULT_DB_DRIVER
-          value: "postgresql"
+          value: "pgsql"
         - name: ADMINER_DEFAULT_SERVER
           value: "postgres"
-        - name: ADMINER_DEFAULT_DB_NAME
-          value: "PostgresDBname"
-        - name: ADMINER_PLUGINS
-          value: "dump-zip dump-bz2 dump-date"
-        - name: ADMINER_DESIGN
-          value: "galkaev"
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
